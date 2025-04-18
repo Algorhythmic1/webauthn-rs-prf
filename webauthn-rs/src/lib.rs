@@ -222,6 +222,7 @@ pub mod prelude {
         AttestationMetadata, AuthenticationResult, AuthenticationState, CreationChallengeResponse,
         CredentialID, ParsedAttestation, ParsedAttestationData, PublicKeyCredential,
         RegisterPublicKeyCredential, RequestChallengeResponse,
+        PrfExtension, PrfEval, RequestAuthenticationExtensions, RequestRegistrationExtensions,
     };
     pub use webauthn_rs_core::proto::{
         COSEAlgorithm, COSEEC2Key, COSEKey, COSEKeyType, COSEKeyTypeId, COSEOKPKey, COSERSAKey,
@@ -517,7 +518,7 @@ impl Webauthn {
     /// #     .expect("Invalid configuration");
     /// # let webauthn = builder.build()
     /// #     .expect("Invalid configuration");
-    /// #
+    ///
     /// // you must store this user's unique id with the account. Alternatelly you can
     /// // use an existed UUID source.
     /// let user_unique_id = Uuid::new_v4();
@@ -538,23 +539,12 @@ impl Webauthn {
         user_name: &str,
         user_display_name: &str,
         exclude_credentials: Option<Vec<CredentialID>>,
+        extensions: Option<RequestRegistrationExtensions>,
     ) -> WebauthnResult<(CreationChallengeResponse, PasskeyRegistration)> {
-        let extensions = Some(RequestRegistrationExtensions {
-            cred_protect: Some(CredProtect {
-                // Since this may contain PII, we want to enforce this. We also
-                // want the device to strictly enforce its UV state.
-                credential_protection_policy: CredentialProtectionPolicy::UserVerificationRequired,
-                // If set to true, causes many authenticators to shit the bed. We have to just hope
-                // and pray instead. This is because many device classes when they see this extension
-                // and can't satisfy it, they fail the operation instead.
-                enforce_credential_protection_policy: Some(false),
-            }),
-            uvm: Some(true),
-            cred_props: Some(true),
-            min_pin_length: None,
-            hmac_create_secret: None,
-        });
-
+        debug!(
+            "Starting passkey registration for user id {}",
+            user_unique_id
+        );
         let builder = self
             .core
             .new_challenge_register_builder(
@@ -610,6 +600,7 @@ impl Webauthn {
             cred_props: Some(true),
             min_pin_length: None,
             hmac_create_secret: None,
+            prf: None,
         });
 
         let builder = self
@@ -675,8 +666,12 @@ impl Webauthn {
     pub fn start_passkey_authentication(
         &self,
         creds: &[Passkey],
+        extensions: Option<RequestAuthenticationExtensions>,
     ) -> WebauthnResult<(RequestChallengeResponse, PasskeyAuthentication)> {
-        let extensions = None;
+        debug!(
+            "Starting passkey authentication for {} possible keys",
+            creds.len()
+        );
         let creds = creds.iter().map(|sk| sk.cred.clone()).collect();
         let policy = Some(UserVerificationPolicy::Required);
         let allow_backup_eligible_upgrade = true;
@@ -872,6 +867,7 @@ impl Webauthn {
             cred_props: Some(true),
             min_pin_length: None,
             hmac_create_secret: None,
+            prf: None,
         });
 
         let policy = if self.user_presence_only_security_keys {
@@ -1089,7 +1085,7 @@ impl Webauthn {
     /// #     .expect("Invalid configuration");
     /// # let webauthn = builder.build()
     /// #     .expect("Invalid configuration");
-    /// #
+    ///
     /// // you must store this user's unique id with the account. Alternatively you can
     /// // use an existed UUID source.
     /// let user_unique_id = Uuid::new_v4();
@@ -1166,6 +1162,7 @@ impl Webauthn {
             // https://fidoalliance.org/specs/fido-v2.1-rd-20210309/fido-client-to-authenticator-protocol-v2.1-rd-20210309.html#sctn-minpinlength-extension
             min_pin_length: Some(true),
             hmac_create_secret: Some(true),
+            prf: None,
         });
 
         let builder = self
@@ -1251,11 +1248,11 @@ impl Webauthn {
         creds: &[AttestedPasskey],
     ) -> WebauthnResult<(RequestChallengeResponse, AttestedPasskeyAuthentication)> {
         let creds = creds.iter().map(|sk| sk.cred.clone()).collect();
-
         let extensions = Some(RequestAuthenticationExtensions {
             appid: None,
             uvm: Some(true),
             hmac_get_secret: None,
+            prf: None,
         });
 
         let policy = Some(UserVerificationPolicy::Required);
@@ -1323,6 +1320,7 @@ impl Webauthn {
             appid: None,
             uvm: Some(true),
             hmac_get_secret: None,
+            prf: None,
         });
         let allow_backup_eligible_upgrade = false;
         let hints = None;
@@ -1426,6 +1424,7 @@ impl Webauthn {
             // https://fidoalliance.org/specs/fido-v2.1-rd-20210309/fido-client-to-authenticator-protocol-v2.1-rd-20210309.html#sctn-minpinlength-extension
             min_pin_length: Some(true),
             hmac_create_secret: Some(true),
+            prf: None,
         });
 
         let builder = self
@@ -1500,6 +1499,7 @@ impl Webauthn {
             appid: None,
             uvm: Some(true),
             hmac_get_secret: None,
+            prf: None,
         });
 
         let policy = Some(UserVerificationPolicy::Required);

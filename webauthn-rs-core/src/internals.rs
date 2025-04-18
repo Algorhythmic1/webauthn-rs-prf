@@ -174,11 +174,19 @@ impl Credential {
             (None, false) => ExtnState::NotRequested,
         };
 
+        // Determine the state of the prf extension
+        let prf = match (client_extn.prf.as_ref(), req_extn.prf.is_some()) {
+            (Some(p), _) => ExtnState::Set(p.clone()), // If client returned PRF results, store them
+            (None, true) => ExtnState::Ignored,       // If PRF was requested but client didn't return results
+            (None, false) => ExtnState::NotRequested, // If PRF was not requested
+        };
+
         let extensions = RegisteredExtensions {
             cred_protect,
             hmac_create_secret,
             appid,
             cred_props,
+            prf, // Add the determined prf state
         };
 
         trace!(?extensions);
@@ -1276,7 +1284,7 @@ impl TryFrom<&[u8; 8]> for TpmVendor {
 }
 
 // The result is concatenated together to form an 8 character name which is
-// appended after the lower-case ASCII characters “id:”.
+// appended after the lower-case ASCII characters "id:".
 pub(crate) fn tpm_device_attribute_parser(i: &[u8]) -> nom::IResult<&[u8], &[u8; 8]> {
     let (i, _) = tag("id:")(i)?;
     let (i, vendor_code) = take(8usize)(i)?;
