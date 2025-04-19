@@ -93,6 +93,7 @@ pub async fn start_register(
         &username,
         &username,
         exclude_credentials,
+        None,
     ) {
         Ok((ccr, reg_state)) => {
             // Note that due to the session store in use being a server side memory store, this is
@@ -217,7 +218,7 @@ pub async fn start_authentication(
 
     let res = match app_state
         .webauthn
-        .start_passkey_authentication(allow_credentials)
+        .start_passkey_authentication(allow_credentials, None)
     {
         Ok((rcr, auth_state)) => {
             // Drop the mutex to allow the mut borrows below to proceed

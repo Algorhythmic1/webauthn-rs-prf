@@ -90,7 +90,7 @@ pub(crate) async fn start_register(
     };
 
     let (ccr, reg_state) = webauthn
-        .start_passkey_registration(user_unique_id, &username, &username, exclude_credentials)
+        .start_passkey_registration(user_unique_id, &username, &username, exclude_credentials, None)
         .map_err(|e| {
             info!("challenge_register -> {:?}", e);
             Error::Unknown(e)
@@ -205,7 +205,7 @@ pub(crate) async fn start_authentication(
         .ok_or(Error::UserHasNoCredentials)?;
 
     let (rcr, auth_state) = webauthn
-        .start_passkey_authentication(allow_credentials)
+        .start_passkey_authentication(allow_credentials, None)
         .map_err(|e| {
             info!("challenge_authenticate -> {:?}", e);
             Error::Unknown(e)

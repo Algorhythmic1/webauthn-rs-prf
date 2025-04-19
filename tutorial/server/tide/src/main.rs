@@ -139,6 +139,7 @@ async fn start_register(mut request: tide::Request<AppState>) -> tide::Result {
         &username,
         &username,
         exclude_credentials,
+        None,
     ) {
         Ok((ccr, reg_state)) => {
             // Note that due to the session store in use being a server side memory store, it is
@@ -263,7 +264,7 @@ async fn start_authentication(mut request: tide::Request<AppState>) -> tide::Res
     let res = match request
         .state()
         .webauthn
-        .start_passkey_authentication(allow_credentials)
+        .start_passkey_authentication(allow_credentials, None)
     {
         Ok((rcr, auth_state)) => {
             // Drop the mutex to allow the mut borrows below to proceed

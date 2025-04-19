@@ -2,6 +2,8 @@
 
 use base64urlsafedata::Base64UrlSafeData;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "wasm")]
+use js_sys::Uint8Array;
 
 /// Valid credential protection policies
 #[derive(Debug, Serialize, Clone, Copy, Deserialize, PartialEq, Eq)]
@@ -112,7 +114,7 @@ pub struct RequestRegistrationExtensions {
 #[cfg(feature = "wasm")]
 impl Into<js_sys::Object> for &RequestRegistrationExtensions {
     fn into(self) -> js_sys::Object {
-        use js_sys::{Object};
+        use js_sys::Object;
         use wasm_bindgen::JsValue;
 
         let RequestRegistrationExtensions {

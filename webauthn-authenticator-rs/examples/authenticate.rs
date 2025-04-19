@@ -286,6 +286,7 @@ async fn main() {
                     appid: Some("example.app.id".to_string()),
                     uvm: None,
                     hmac_get_secret: None,
+                    prf: None,
                 }))
             })
             .and_then(|b| wan.generate_challenge_authenticate(b))

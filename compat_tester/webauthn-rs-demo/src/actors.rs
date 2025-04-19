@@ -115,6 +115,7 @@ impl WebauthnActor {
                     &username,
                     &username,
                     Some(vec![vec![0x00, 0x01, 0x02, 0x03].into()]),
+                    None,
                 )
                 .map(|(ccr, rs)| (ccr, RegistrationTypedState::Passkey(rs)))?,
             RegisterWithType::AttestedPasskey(strict) => {
@@ -201,7 +202,7 @@ impl WebauthnActor {
                     })
                     .collect();
                 self.swan
-                    .start_passkey_authentication(&creds)
+                    .start_passkey_authentication(&creds, None)
                     .map(|(acr, ast)| (acr, AuthenticationTypedState::Passkey(ast)))?
             }
             AuthenticateWithType::AttestedPasskey => {

@@ -165,6 +165,7 @@ fn register_start(data: &str) -> Result<RegisterStartResponse> {
         &rsr.user_name,
         &rsr.user_display_name,
         Some(rsr.exclude_credentials),
+        None,
     )?;
     Ok(RegisterStartResponse {
         client: creation_challenge_response,
@@ -190,7 +191,7 @@ fn authenticate_start(data: &str) -> Result<AuthenticateStartResponse> {
     let webauthn = builder.build()?;
     let passkeys = asr.passkeys;
     let (request_challenge_response, passkey_authentication) =
-        webauthn.start_passkey_authentication(&passkeys)?;
+        webauthn.start_passkey_authentication(&passkeys, None)?;
     Ok(AuthenticateStartResponse {
         client: request_challenge_response,
         server: passkey_authentication,
