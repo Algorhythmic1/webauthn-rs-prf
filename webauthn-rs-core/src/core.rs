@@ -1193,16 +1193,21 @@ impl WebauthnCore {
         ccd_url: &url::Url,
         cnf_url: &url::Url,
     ) -> bool {
+        info!("In origins_match function: ccd_url: {:?}, cnf_url: {:?}", ccd_url, cnf_url);
         if ccd_url == cnf_url {
+            info!("Exact match:ccd_url == cnf_url");
             return true;
         }
         if allow_subdomains_origin {
+            info!("No exact match, but allow_subdomains_origin is true, checking deeper");
             match (ccd_url.origin(), cnf_url.origin()) {
                 (
                     url::Origin::Tuple(ccd_scheme, ccd_host, ccd_port),
                     url::Origin::Tuple(cnf_scheme, cnf_host, cnf_port),
                 ) => {
+                    info!("In origins_match function: ccd_scheme: {:?}, cnf_scheme: {:?}", ccd_scheme, cnf_scheme);
                     if ccd_scheme != cnf_scheme {
+                        info!("Scheme mismatch: ccd_scheme != cnf_scheme");
                         debug!("{} != {}", ccd_url, cnf_url);
                         return false;
                     }
@@ -1232,6 +1237,7 @@ impl WebauthnCore {
                 }
             }
         } else if ccd_url.origin() != cnf_url.origin() || !ccd_url.origin().is_tuple() {
+            info!("No exact string match, and allow_subdomains_origin is false. allow_any_port is {:?}", allow_any_port);
             if ccd_url.host() == cnf_url.host()
                 && ccd_url.scheme() == cnf_url.scheme()
                 && allow_any_port
