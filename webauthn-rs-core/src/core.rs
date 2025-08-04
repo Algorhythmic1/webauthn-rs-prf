@@ -220,6 +220,39 @@ impl WebauthnCore {
         }
     }
 
+    /// Create a new WebauthnCore instance that supports both URL and Android origins
+    pub fn new_with_android_support(
+        rp_name: &str,
+        rp_id: &str,
+        allowed_origins: Vec<String>,
+        authenticator_timeout: Duration,
+        allow_subdomains_origin: Option<bool>,
+        allow_any_port: Option<bool>,
+    ) -> Result<Self, WebauthnError> {
+        let mut url_origins = Vec::new();
+        
+        for origin in allowed_origins {
+            if origin.starts_with("android:apk-key-hash:") {
+                // For Android origins, create a special URL that will be handled by origins_match
+                // We'll use a custom scheme that gets converted back to the Android format
+                let android_url = format!("android://{}", &origin[8..]); // Remove "android:" prefix
+                url_origins.push(Url::parse(&android_url).map_err(|_| WebauthnError::InvalidRPOrigin)?);
+            } else {
+                // Regular URL origin
+                url_origins.push(Url::parse(&origin).map_err(|_| WebauthnError::InvalidRPOrigin)?);
+            }
+        }
+        
+        Ok(Self::new_unsafe_experts_only(
+            rp_name,
+            rp_id,
+            url_origins,
+            authenticator_timeout,
+            allow_subdomains_origin,
+            allow_any_port,
+        ))
+    }
+
     /// Get the currently configured origins
     pub fn get_allowed_origins(&self) -> &[Url] {
         &self.allowed_origins
@@ -1193,6 +1226,27 @@ impl WebauthnCore {
         ccd_url: &url::Url,
         cnf_url: &url::Url,
     ) -> bool {
+        // Handle Android origins specially
+        let ccd_origin_str = ccd_url.as_str();
+        let cnf_origin_str = cnf_url.as_str();
+        
+        // Check for Android origin format: android:apk-key-hash:<hash>
+        if ccd_origin_str.starts_with("android:apk-key-hash:") {
+            // For Android origins, we need exact string matching
+            return ccd_origin_str == cnf_origin_str;
+        }
+        
+        // Also handle the case where the configured origin is an Android origin
+        if cnf_origin_str.starts_with("android:apk-key-hash:") {
+            return ccd_origin_str == cnf_origin_str;
+        }
+        
+        // Handle converted Android URLs (android://apk-key-hash/...)
+        if cnf_origin_str.starts_with("android://apk-key-hash/") {
+            let android_origin = format!("android:apk-key-hash:{}", &cnf_origin_str[24..]); // Remove "android://apk-key-hash/" prefix
+            return ccd_origin_str == android_origin;
+        }
+        
         if ccd_url == cnf_url {
             return true;
         }
