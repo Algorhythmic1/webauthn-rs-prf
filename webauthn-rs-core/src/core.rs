@@ -29,6 +29,7 @@ use crate::crypto::compute_sha256;
 use crate::error::WebauthnError;
 use crate::internals::*;
 use crate::proto::*;
+use tracing::info;
 
 /// The Core Webauthn handler.
 ///
@@ -1193,16 +1194,21 @@ impl WebauthnCore {
         ccd_url: &url::Url,
         cnf_url: &url::Url,
     ) -> bool {
+        info!("In origins_match function: ccd_url: {:?}, cnf_url: {:?}", ccd_url, cnf_url);
         if ccd_url == cnf_url {
+            info!("Exact match:ccd_url == cnf_url");
             return true;
         }
         if allow_subdomains_origin {
+            info!("No exact match, but allow_subdomains_origin is true, checking deeper");
             match (ccd_url.origin(), cnf_url.origin()) {
                 (
                     url::Origin::Tuple(ccd_scheme, ccd_host, ccd_port),
                     url::Origin::Tuple(cnf_scheme, cnf_host, cnf_port),
                 ) => {
+                    info!("In origins_match function: ccd_scheme: {:?}, cnf_scheme: {:?}", ccd_scheme, cnf_scheme);
                     if ccd_scheme != cnf_scheme {
+                        info!("Scheme mismatch: ccd_scheme != cnf_scheme");
                         debug!("{} != {}", ccd_url, cnf_url);
                         return false;
                     }
@@ -1232,6 +1238,7 @@ impl WebauthnCore {
                 }
             }
         } else if ccd_url.origin() != cnf_url.origin() || !ccd_url.origin().is_tuple() {
+            info!("No exact string match, and allow_subdomains_origin is false. allow_any_port is {:?}", allow_any_port);
             if ccd_url.host() == cnf_url.host()
                 && ccd_url.scheme() == cnf_url.scheme()
                 && allow_any_port
@@ -3806,6 +3813,70 @@ mod tests {
     }
 
     #[test]
+    fn test_astrolabe_apk_key_hash_origin_matches() {
+        let _ = tracing_subscriber::fmt::try_init();
+        
+        let android_origin = "android:apk-key-hash:-sYXRdwJA3hvud7mKpYKz559zSPBLb4mbgzJmdZEDO5w";
+        
+        // Test that the Android APK key hash can be parsed as a URL
+        let parsed_url = Url::parse(android_origin).expect("Android APK key hash should parse as valid URL");
+        println!("Parsed Android origin URL: {:?}", parsed_url);
+        println!("Scheme: {:?}", parsed_url.scheme());
+        println!("Path: {:?}", parsed_url.path());
+        println!("Cannot be a base: {:?}", parsed_url.cannot_be_a_base());
+        println!("Origin: {:?}", parsed_url.origin());
+        
+        println!("\n=== TEST 1: Exact origin matching (same origin should match) ===");
+        let result1 = Webauthn::origins_match(
+            false,
+            false,
+            &parsed_url,
+            &parsed_url,
+        );
+        println!("Result: {}", result1);
+        assert!(result1);
+
+        println!("\n=== TEST 2: Different Android origins should NOT match ===");
+        let different_android_origin = "android:apk-key-hash:differenthashvalue123";
+        let different_parsed_url = Url::parse(different_android_origin).unwrap();
+        println!("Different origin: {:?}", different_parsed_url);
+        
+        let result2 = Webauthn::origins_match(
+            false,
+            false,
+            &parsed_url,
+            &different_parsed_url,
+        );
+        println!("Result: {}", result2);
+        assert!(!result2);
+        
+        println!("\n=== TEST 3: With subdomain allowance (should still require exact match for Android origins) ===");
+        let result3 = Webauthn::origins_match(
+            true,  // allow_subdomains_origin = true
+            false,
+            &parsed_url,
+            &parsed_url,
+        );
+        println!("Result: {}", result3);
+        assert!(result3);
+        
+        println!("\n=== TEST 4: Android vs HTTPS origin (should NOT match) ===");
+        let https_origin = Url::parse("https://example.com").unwrap();
+        println!("HTTPS origin: {:?}", https_origin);
+        
+        let result4 = Webauthn::origins_match(
+            false,
+            false,
+            &parsed_url,
+            &https_origin,
+        );
+        println!("Result: {}", result4);
+        assert!(!result4);
+        
+        println!("All Android APK key hash origin tests passed!");
+    }
+
+    #[test]
     fn test_solokey_v2_a_sealed_attestation() {
         let chal: HumanBinaryData =
             serde_json::from_str("\"VEP2Y5lrFKvfNZCt-js1BivzIRjDCXERNRswVPGT1tw\"").unwrap();
@@ -3992,3 +4063,4 @@ mod tests {
         ));
     }
 }
+
