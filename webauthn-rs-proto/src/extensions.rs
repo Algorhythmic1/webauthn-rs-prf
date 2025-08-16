@@ -64,31 +64,42 @@ pub struct PrfExtension {
 }
 
 /// Contains the salt values used for PRF evaluation.
+/// During registration, browsers may return {"enabled": bool, "results": {...}}
+/// but we can handle both formats flexibly.
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct PrfEval {
+#[serde(untagged)]
+pub enum PrfEval {
+    /// Authentication format: direct evaluation results
+    Direct {
+        /// The first salt value (handled by Base64UrlSafeData)
+        first: Base64UrlSafeData,
+        /// The second salt value, if it exists (handled by Base64UrlSafeData)
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        second: Option<Base64UrlSafeData>,
+    },
+    /// Browser registration format: {"enabled": bool, "results": {...}}
+    Registration {
+        /// Whether PRF is enabled on the authenticator
+        enabled: bool,
+        /// Optional evaluation results (may be empty during registration)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        results: Option<PrfEvalDirect>,
+    },
+    /// Just the enabled flag when no results are provided
+    Enabled { 
+        /// Whether PRF is enabled on the authenticator
+        enabled: bool 
+    },
+}
+
+/// Direct PRF evaluation results (used in nested results)
+#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
+pub struct PrfEvalDirect {
     /// The first salt value (handled by Base64UrlSafeData)
     pub first: Base64UrlSafeData,
     /// The second salt value, if it exists (handled by Base64UrlSafeData)
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub second: Option<Base64UrlSafeData>,
-}
-
-/// Represents PRF extension output during registration.
-/// Browsers may return different formats, so we handle both.
-#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
-#[serde(untagged)]
-pub enum PrfRegistrationOutput {
-    /// Simple format: just the PRF evaluation result
-    Simple(PrfEval),
-    /// Browser format: {"enabled": bool, "results": {...}}
-    Browser {
-        enabled: bool,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        results: Option<PrfEval>,
-    },
-    /// Just the enabled flag when no results are provided
-    Enabled { enabled: bool },
 }
 
 /// Extension option inputs for PublicKeyCredentialCreationOptions.
@@ -266,10 +277,15 @@ impl Into<js_sys::Object> for &RequestAuthenticationExtensions {
                 let prf_obj = Object::new();
                 let eval_obj = Object::new();
                 
-                let first_array = Uint8Array::from(eval_input.first.as_slice());
+                let (first_data, second_data) = match eval_input {
+                    PrfEval::Direct { first, second } => (first, second),
+                    // For registration/enabled variants, we don't have direct access to first/second
+                    _ => return Object::new(),
+                };
+                let first_array = Uint8Array::from(first_data.as_slice());
                 js_sys::Reflect::set(&eval_obj, &"first".into(), &first_array.buffer()).unwrap();
                 
-                match &eval_input.second {
+                match second_data {
                     Some(second_bytes) => {
                         let second_array = Uint8Array::from(second_bytes.as_slice());
                         js_sys::Reflect::set(&eval_obj, &"second".into(), &second_array.buffer()).unwrap();
@@ -354,7 +370,7 @@ impl From<web_sys::AuthenticationExtensionsClientOutputs>
                     .ok()
                     .map(|v| Uint8Array::new(&v).to_vec());
 
-                Some(PrfEval {
+                Some(PrfEval::Direct {
                     first: Base64UrlSafeData::from(first_bytes),
                     second: second_bytes.map(Base64UrlSafeData::from),
                 })
@@ -409,7 +425,7 @@ pub struct RegistrationExtensionsClientOutputs {
     /// During registration, browsers may return {"enabled": bool, "results": {...}}
     /// but we only care about the capability, not the actual results
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub prf: Option<PrfRegistrationOutput>,
+    pub prf: Option<PrfEval>,
 }
 
 #[cfg(feature = "wasm")]
@@ -456,7 +472,7 @@ impl From<web_sys::AuthenticationExtensionsClientOutputs> for RegistrationExtens
                     .ok()
                     .map(|v| Uint8Array::new(&v).to_vec());
 
-                Some(PrfEval {
+                Some(PrfEval::Direct {
                     first: Base64UrlSafeData::from(first_bytes),
                     second: second_bytes.map(Base64UrlSafeData::from),
                 })
