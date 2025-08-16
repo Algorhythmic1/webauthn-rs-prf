@@ -74,6 +74,23 @@ pub struct PrfEval {
     pub second: Option<Base64UrlSafeData>,
 }
 
+/// Represents PRF extension output during registration.
+/// Browsers may return different formats, so we handle both.
+#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum PrfRegistrationOutput {
+    /// Simple format: just the PRF evaluation result
+    Simple(PrfEval),
+    /// Browser format: {"enabled": bool, "results": {...}}
+    Browser {
+        enabled: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        results: Option<PrfEval>,
+    },
+    /// Just the enabled flag when no results are provided
+    Enabled { enabled: bool },
+}
+
 /// Extension option inputs for PublicKeyCredentialCreationOptions.
 ///
 /// Implements \[AuthenticatorExtensionsClientInputs\] from the spec.
@@ -389,8 +406,10 @@ pub struct RegistrationExtensionsClientOutputs {
     pub min_pin_length: Option<u32>,
 
     /// PRF extension results
+    /// During registration, browsers may return {"enabled": bool, "results": {...}}
+    /// but we only care about the capability, not the actual results
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub prf: Option<PrfEval>,
+    pub prf: Option<PrfRegistrationOutput>,
 }
 
 #[cfg(feature = "wasm")]
