@@ -176,9 +176,58 @@ impl Credential {
 
         // Determine the state of the prf extension
         let prf = match (client_extn.prf.as_ref(), req_extn.prf.is_some()) {
-            (Some(p), _) => ExtnState::Set(p.clone()), // If client returned PRF results, store them
-            (None, true) => ExtnState::Ignored,       // If PRF was requested but client didn't return results
-            (None, false) => ExtnState::NotRequested, // If PRF was not requested
+            (Some(p), _) => {
+                trace!("PRF extension present in client response: {:?}", p);
+                // Convert browser registration format to direct format for storage
+                let direct_eval = match p {
+                    PrfEval::Direct { first, second } => {
+                        trace!("PRF Direct variant - first length: {}, second present: {}", 
+                               first.len(), second.is_some());
+                        PrfEval::Direct {
+                            first: first.clone(),
+                            second: second.clone(),
+                        }
+                    },
+                    PrfEval::Registration { enabled, results } => {
+                        trace!("PRF Registration variant - enabled: {}, results present: {}", 
+                               enabled, results.is_some());
+                        // Extract actual results if present, otherwise create empty direct eval
+                        if let Some(results) = results {
+                            trace!("PRF Registration has results - first length: {}, second present: {}", 
+                                   results.first.len(), results.second.is_some());
+                            PrfEval::Direct {
+                                first: results.first.clone(),
+                                second: results.second.clone(),
+                            }
+                        } else {
+                            trace!("PRF Registration has no results - creating empty direct eval");
+                            // No actual results, just enabled flag - create empty eval
+                            PrfEval::Direct {
+                                first: vec![].into(),
+                                second: None,
+                            }
+                        }
+                    },
+                    PrfEval::Enabled { enabled } => {
+                        trace!("PRF Enabled variant - enabled: {} - creating empty direct eval", enabled);
+                        // Just enabled flag, no results - create empty eval
+                        PrfEval::Direct {
+                            first: vec![].into(),
+                            second: None,
+                        }
+                    },
+                };
+                trace!("PRF extension converted to direct eval for storage: {:?}", direct_eval);
+                ExtnState::Set(direct_eval)
+            },
+            (None, true) => {
+                trace!("PRF was requested but client didn't return results - marking as Ignored");
+                ExtnState::Ignored       // If PRF was requested but client didn't return results
+            },
+            (None, false) => {
+                trace!("PRF was not requested - marking as NotRequested");
+                ExtnState::NotRequested // If PRF was not requested
+            },
         };
 
         let extensions = RegisteredExtensions {
