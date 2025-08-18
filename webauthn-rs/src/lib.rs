@@ -530,6 +530,8 @@ impl Webauthn {
     ///         "claire",
     ///         "Claire",
     ///         None, // No other credentials are registered yet.
+    ///         None, // No extensions
+    ///         None, // No specific authenticator attachment preference
     ///     )
     ///     .expect("Failed to start registration.");
     /// ```
@@ -540,6 +542,7 @@ impl Webauthn {
         user_display_name: &str,
         exclude_credentials: Option<Vec<CredentialID>>,
         extensions: Option<RequestRegistrationExtensions>,
+        authenticator_attachment: Option<AuthenticatorAttachment>,
     ) -> WebauthnResult<(CreationChallengeResponse, PasskeyRegistration)> {
         debug!(
             "Starting passkey registration for user id {}",
@@ -555,7 +558,7 @@ impl Webauthn {
             .attestation(AttestationConveyancePreference::None)
             .credential_algorithms(self.algorithms.clone())
             .require_resident_key(false)
-            .authenticator_attachment(None)
+            .authenticator_attachment(authenticator_attachment)
             .user_verification_policy(UserVerificationPolicy::Required)
             .reject_synchronised_authenticators(false)
             .exclude_credentials(exclude_credentials)
